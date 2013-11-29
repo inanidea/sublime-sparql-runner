@@ -93,11 +93,14 @@ class QueryRunner(threading.Thread):
                 'format': 'application/sparql-results+json'
             }
 
-            url = self.server + '?' + urlencode(params)
+            url = self.server["url"] + '?' + urlencode(params)
             req = Request(url)
-            username = password = "admin"
-            base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
-            req.add_header("Authorization", "Basic %s" % base64string)
+            if "username" in self.server.keys():
+                username = self.server["username"]
+                password = self.server["password"]
+                base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
+                req.add_header("Authorization", "Basic %s" % base64string)
+
             req.add_header('Accept', 'application/sparql-results+json,application/ld+json,application/json')
             response = urlopen(req)
             info = response.info() if response.info else response
@@ -185,7 +188,8 @@ class SelectSparqlEndpointCommand(sublime_plugin.WindowCommand):
         for endpoint in self.sparql_endpoints:
             url = endpoint['url']
             name = endpoint['name']
-            if url == self.current_endpoint:
+            c = self.current_endpoint
+            if type(c) == dict and "url" in c.keys() and url == c['url']:
                 name = "*%s" % name
             self.endpoints.append([name, url])
 
@@ -198,8 +202,8 @@ class SelectSparqlEndpointCommand(sublime_plugin.WindowCommand):
         ])
         self.set_as_current(url)
 
-    def set_as_current(self, url):
-        self.settings.set('current_endpoint', url)
+    def set_as_current(self, endpoint):
+        self.settings.set('current_endpoint', endpoint)
         sublime.save_settings(SETTINGS_FILE)
 
     def on_panel_select_done(self, selected):
@@ -209,7 +213,7 @@ class SelectSparqlEndpointCommand(sublime_plugin.WindowCommand):
         if selected == 0:
             self.window.show_input_panel('Endpoint name', '', self.on_name_done, self.on_change, self.on_cancel)
             return
-        self.set_as_current(self.endpoints[selected][1])
+        self.set_as_current(self.sparql_endpoints[selected - 1 ])
 
     def on_name_done(self, name):
         self.name = name
