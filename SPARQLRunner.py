@@ -3,9 +3,17 @@ try:
 except ImportError:
     from urllib import urlencode
 
-from urllib.request import urlopen
+try:
+    from urllib.request import urlopen
+except ImportError:
+    from urllib2 import urlopen
 
-import urllib
+try:
+    from urllib.request import Request
+except ImportError:
+    from urllib2 import Request
+
+import base64
 
 from json import loads, dumps
 import threading
@@ -86,10 +94,14 @@ class QueryRunner(threading.Thread):
             }
 
             url = self.server + '?' + urlencode(params)
-            req = urllib.request.Request(url)
+            req = Request(url)
+            username = password = "admin"
+            base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
+            req.add_header("Authorization", "Basic %s" % base64string)
             req.add_header('Accept', 'application/sparql-results+json,application/ld+json,application/json')
             response = urlopen(req)
-            if response.getheader("Content-Type").startswith("text") or response.getheader("Content-Type").find("xml") != -1:
+            info = response.info() if response.info else response
+            if info.getheader("Content-Type").startswith("text") or info.getheader("Content-Type").find("xml") != -1:
                 self.result = response.read().decode("utf-8")
             else:
                 result_dict = loads(response.read().decode("utf-8"))
