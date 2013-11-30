@@ -3,18 +3,16 @@ try:
 except ImportError:
     from urllib import urlencode
 
-try:
-    from urllib.request import urlopen
-except ImportError:
-    from urllib2 import urlopen
+from urllib.request import urlopen
 
-from json import loads
+import urllib
+
+from json import loads, dumps
 import threading
 import re
 
 import sublime
 import sublime_plugin
-
 
 PROGRESS = ['-', '\\', '|', '/']
 PREFIX_REGEX = re.compile(r'^\s*prefix\s+(.*?)\s+<(.*?)>\s*$', re.MULTILINE | re.IGNORECASE)
@@ -39,6 +37,8 @@ class QueryRunner(threading.Thread):
         return value
 
     def format_result(self, result):
+        if isinstance(result, list):
+            return dumps(result, indent=4)
         prefixes = self.parse_prefixes()
         bindings = result['results']['bindings']
         variables = result['head']['vars']
@@ -86,9 +86,14 @@ class QueryRunner(threading.Thread):
             }
 
             url = self.server + '?' + urlencode(params)
-            response = urlopen(url)
-            result_dict = loads(response.read().decode("utf-8"))
-            self.result = self.format_result(result_dict)
+            req = urllib.request.Request(url)
+            req.add_header('Accept', 'application/sparql-results+json,application/ld+json,application/json')
+            response = urlopen(req)
+            if response.getheader("Content-Type").startswith("text") or response.getheader("Content-Type").find("xml") != -1:
+                self.result = response.read().decode("utf-8")
+            else:
+                result_dict = loads(response.read().decode("utf-8"))
+                self.result = self.format_result(result_dict)
         except Exception as e:
             err = '%s: Error %s running query' % (__name__, str(e))
             sublime.error_message(err)
